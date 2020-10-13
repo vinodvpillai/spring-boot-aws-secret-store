@@ -7,19 +7,21 @@ import com.amazonaws.services.secretsmanager.AWSSecretsManagerClientBuilder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.Environment;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.stereotype.Component;
-import org.springframework.util.ObjectUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.vinod.aws.secret.store.config.SecretStorePropertySourceConfigurationProperties.*;
+import static com.vinod.aws.secret.store.config.SecretStorePropertySourceConfigurationProperties.SECRET_STORE_ENABLED_CONFIGURATION_PROPERTY;
+import static com.vinod.aws.secret.store.config.SecretStorePropertySourceConfigurationProperties.SECRET_STORE_PROPERTY_SOURCE_NAME;
 
 
 @Component
@@ -28,10 +30,8 @@ public class SecretStorePropertySourceEnvironmentPostProcessor implements Enviro
 
     private static boolean initialized;
 	private ObjectMapper mapper;
-
-    private String accessKey="accessKey";
-    private String secretKey="secretKey";
-
+    @Autowired
+    private Environment environment;
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application)
@@ -40,7 +40,7 @@ public class SecretStorePropertySourceEnvironmentPostProcessor implements Enviro
         	mapper = new ObjectMapper();
 
         	//AWSSecretsManager simpleSystemsManagementClient = AWSSecretsManagerClientBuilder.defaultClient();
-            AWSSecretsManager awsSecretsManager = AWSSecretsManagerClientBuilder.standard().withCredentials(new StaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))).withRegion("ap-south-1").build();
+            AWSSecretsManager awsSecretsManager = AWSSecretsManagerClientBuilder.standard().withCredentials(new StaticCredentialsProvider(new BasicAWSCredentials(environment.getProperty("ACCESS_KEY"), environment.getProperty("SECRET_KEY")))).withRegion("ap-south-1").build();
             SecretStoreSource secretStoreSource = new SecretStoreSource(awsSecretsManager);
 
             Map<String, Object> map = new HashMap<>();
@@ -54,8 +54,8 @@ public class SecretStorePropertySourceEnvironmentPostProcessor implements Enviro
     
     private void setSecretProperties(SecretStoreSource secretStoreSource, String propertyName, Map<String, Object> map) {
 	    log.info("Retrieving secret from secret store for property : {}", propertyName);
-	    Object secret2 = secretStoreSource.getSecret(propertyName);
-        String secret = secret2!=null?secret2.toString():"{}";
+	    Object secretResult = secretStoreSource.getSecret(propertyName);
+        String secret = secretResult!=null?secretResult.toString():"{}";
         log.info("Retrieved secret from secret store for property : {}", propertyName);
 	    Map<String, Object> mapPgp = null;
 	    try {
@@ -68,7 +68,6 @@ public class SecretStorePropertySourceEnvironmentPostProcessor implements Enviro
 
     private boolean isParameterStorePropertySourceEnabled(ConfigurableEnvironment environment)
     {
-        String[] userDefinedEnabledProfiles = environment.getProperty(SECRET_STORE_ACCEPTED_PROFILES_CONFIGURATION_PROPERTY, String[].class);
-        return environment.getProperty(SECRET_STORE_ENABLED_CONFIGURATION_PROPERTY, Boolean.class, Boolean.FALSE) || environment.acceptsProfiles(SECRET_STORE_ACCEPTED_PROFILE) || (!ObjectUtils.isEmpty(userDefinedEnabledProfiles) && environment.acceptsProfiles(userDefinedEnabledProfiles));
+        return environment.getProperty(SECRET_STORE_ENABLED_CONFIGURATION_PROPERTY, Boolean.class, Boolean.FALSE);
     }
 }
